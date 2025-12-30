@@ -1,0 +1,30 @@
+BEGIN TRY
+
+BEGIN TRAN;
+
+-- CreateTable
+CREATE TABLE [dbo].[UserToken] (
+    [id] INT NOT NULL IDENTITY(1,1),
+    [refreshToken] VARCHAR(500) NOT NULL,
+    [userId] INT NOT NULL,
+    [revoked] BIT NOT NULL CONSTRAINT [UserToken_revoked_df] DEFAULT 0,
+    [expiresAt] DATETIME2 NOT NULL,
+    [createdAt] DATETIME2 NOT NULL CONSTRAINT [UserToken_createdAt_df] DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT [UserToken_pkey] PRIMARY KEY CLUSTERED ([id])
+);
+
+-- AddForeignKey
+ALTER TABLE [dbo].[UserToken] ADD CONSTRAINT [UserToken_userId_fkey] FOREIGN KEY ([userId]) REFERENCES [dbo].[User]([id]) ON DELETE NO ACTION ON UPDATE CASCADE;
+
+COMMIT TRAN;
+
+END TRY
+BEGIN CATCH
+
+IF @@TRANCOUNT > 0
+BEGIN
+    ROLLBACK TRAN;
+END;
+THROW
+
+END CATCH
