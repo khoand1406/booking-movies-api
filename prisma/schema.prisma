@@ -1,0 +1,189 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlserver"
+}
+
+/* ======================
+   MOVIES
+====================== */
+
+model Movie {
+  id              Int      @id @default(autoincrement())
+  title           String
+  slug            String   @unique
+  description     String
+  durationMinutes Int
+  releaseDate     DateTime
+  endDate         DateTime?
+  rating          Float?
+  language        String
+  posterUrl       String
+  trailerUrl      String?
+  status          String   @db.VarChar(50) // NOW_SHOWING, COMING_SOON, STOP
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  showtimes       Showtime[]
+}
+
+/* ======================
+   CINEMA & ROOM
+====================== */
+
+model Cinema {
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String
+  city      String
+  latitude  Float?
+  longitude Float?
+  status    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  rooms     Room[]
+}
+
+model Room {
+  id         Int      @id @default(autoincrement())
+  cinemaId   Int
+  name       String
+  roomType   String   @db.VarChar(20) // TWO_D, THREE_D, IMAX
+  totalSeats Int
+  createdAt  DateTime @default(now())
+
+  cinema     Cinema   @relation(fields: [cinemaId], references: [id], onDelete: Cascade)
+  seats      Seat[]
+  showtimes  Showtime[]
+}
+
+/* ======================
+   SEATS
+====================== */
+
+model Seat {
+  id          Int      @id @default(autoincrement())
+  roomId      Int
+  rowLabel    String   @db.VarChar(5)
+  seatNumber  Int
+  seatType    String   @db.VarChar(20) // STANDARD, VIP, COUPLE
+  isActive    Boolean  @default(true)
+
+  room        Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  bookingSeats BookingSeat[]
+  tickets     Ticket[]
+
+  @@unique([roomId, rowLabel, seatNumber])
+}
+
+/* ======================
+   SHOWTIMES
+====================== */
+
+model Showtime {
+  id         Int      @id @default(autoincrement())
+  movieId    Int
+  roomId     Int
+  startTime  DateTime
+  endTime    DateTime
+  basePrice  Decimal  @db.Decimal(10, 2)
+  status     String   @db.VarChar(20) // OPEN, CLOSED, CANCELLED
+
+  movie      Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  bookings   Booking[]
+}
+
+/* ======================
+   USERS
+====================== */
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  fullName  String
+  phone     String?
+  role      String   @db.VarChar(20) // USER, STAFF, ADMIN
+  createdAt DateTime @default(now())
+
+  bookings  Booking[]
+}
+
+/* ======================
+   BOOKINGS
+====================== */
+
+model Booking {
+  id           Int      @id @default(autoincrement())
+  userId       Int?
+  showtimeId   Int
+  bookingCode  String   @unique
+  totalAmount  Decimal  @db.Decimal(10, 2)
+  status       String   @db.VarChar(20) // PENDING, PAID, CANCELLED, EXPIRED
+  expiresAt    DateTime?
+  createdAt    DateTime @default(now())
+
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  showtime     Showtime @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
+  seats        BookingSeat[]
+  payment      Payment?
+  tickets      Ticket[]
+}
+
+/* ======================
+   BOOKING SEATS
+====================== */
+
+model BookingSeat {
+  id         Int      @id @default(autoincrement())
+  bookingId  Int
+  seatId     Int
+  seatPrice  Decimal  @db.Decimal(10, 2)
+
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  seat       Seat     @relation(fields: [seatId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([bookingId, seatId])
+}
+
+/* ======================
+   TICKETS
+====================== */
+
+model Ticket {
+  id          Int      @id @default(autoincrement())
+  bookingId   Int
+  seatId      Int
+  qrCode      String   @unique
+  issuedAt    DateTime @default(now())
+  checkedInAt DateTime?
+
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  seat        Seat     @relation(fields: [seatId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/* ======================
+   PAYMENTS
+====================== */
+
+model Payment {
+  id              Int      @id @default(autoincrement())
+  bookingId       Int      @unique
+  paymentMethod   String   @db.VarChar(20) // VNPAY, MOMO, ZALOPAY
+  amount          Decimal  @db.Decimal(10, 2)
+  transactionCode String?
+  status          String   @db.VarChar(20) // PENDING, SUCCESS, FAILED
+  paidAt          DateTime?
+
+  booking         Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
