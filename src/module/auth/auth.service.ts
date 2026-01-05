@@ -3,6 +3,8 @@ import prisma from 'src/lib/prisma';
 import logger from 'src/utils/logger.utils';
 import { UserRepository } from '../user/user.repository';
 import { RegisterRequest, RegisterResponse } from './dto/register.dto';
+import { processCreateRequest } from 'src/utils/user.utils';
+import { UpdateProfileRequest, UpdateProfileResponse } from './dto/login.dto';
 
 export class AuthService {
   private userRepository: UserRepository;
@@ -91,9 +93,37 @@ export class AuthService {
   }
   async register(newUser: RegisterRequest): Promise<RegisterResponse> {
     try {
-        return 
+        const checkUser= await this.userRepository.findByEmail(newUser.email);
+        if(checkUser){
+            throw new Error('User already exists')
+        }
+        const res= processCreateRequest(newUser);
+        const createdUser= await this.userRepository.createUser(res);
+        return {
+            id: createdUser.id,
+            email: createdUser.email,
+            name: createdUser.fullName
+        }
     } catch (error) {
-        
+        throw error;
+    }
+  }
+  async updateProfile(userId: number, updateData: UpdateProfileRequest): Promise<UpdateProfileResponse>{
+    try {
+      const findUser= await this.userRepository.findById(userId);
+      if(!findUser){
+        throw new Error('User not found');
+      }
+      const updatedUser= await this.userRepository.updateUser(userId, updateData);
+      return {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        phone: updatedUser.phone,
+        address: updatedUser.address
+      }
+    } catch (error) {
+      throw error;
     }
   }
 }
