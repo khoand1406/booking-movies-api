@@ -110,9 +110,12 @@ model Showtime {
 model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
+  username  String   @unique
+  address   String?
   password  String
   fullName  String
-  phone     String?
+  phone     String?  @unique
+  avatarUrl String?
   role      String   @db.VarChar(20) // USER, STAFF, ADMIN
   createdAt DateTime @default(now())
 

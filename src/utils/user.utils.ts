@@ -9,7 +9,7 @@ export function processCreateRequest(request: RegisterRequest): CreateUserRPaylo
     const result= {
         email: request.email,
         password: request.password,
-        fullName: request.name,
+        username: request.name,
         phoneNumber: '',
         role: 'user',
         createdAt: new Date()

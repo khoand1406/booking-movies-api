@@ -3,29 +3,41 @@ export interface UserLoginRequest {
     password: string;
 }
 
-export interface UserLoginResponse{
-    
+export interface UserLoginResponse {
+    accessToken: string;
+    refreshToken: string;
+    user: UserDetailResponse;
 }
 
-export interface UpdateProfileRequest{
+export interface UpdateProfileRequest {
     name?: string;
     phone?: string;
-    
+    address?: string;
+    avatarUrl?: string;
 }
 
-export interface UpdateProfileResponse{
+export interface UpdateProfileResponse {
     id: number;
     email: string;
     name: string;
     phone?: string;
     address?: string;
 }
+export interface UserResponseBasicInfo {
+    id: number;
+    email: string;
+    username: string;
+    avatarUrl?: string;
+}
 
-export interface UserDetailResponse{
+export interface UserDetailResponse {
     id: number;
     email: string;
     fullName: string;
-    phone?: string;
+    phone: string;
     role: string;
+    avatarUrl?: string;
     createdAt?: Date;
+    username: string;
+    address?: string;
 }

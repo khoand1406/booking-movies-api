@@ -1,88 +1,88 @@
+import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import prisma from 'src/lib/prisma';
-import logger from 'src/utils/logger.utils';
-import { UserRepository } from '../user/user.repository';
-import { RegisterRequest, RegisterResponse } from './dto/register.dto';
 import { processCreateRequest } from 'src/utils/user.utils';
-import { UpdateProfileRequest, UpdateProfileResponse } from './dto/login.dto';
+import { UserRepository } from '../user/user.repository';
+import {
+  UserResponseBasicInfo,
+} from './dto/login.dto';
+import { RegisterRequest, RegisterResponse } from './dto/register.dto';
+import { NotFoundError } from 'src/common/errors/not-found.error';
+import { BadCredentialsError } from 'src/common/errors/bad-credientals.error';
+import { ForgetPasswordRequest } from './dto/auth.dto';
+import { BaseError } from 'src/common/errors/error.base';
+import { InvalidTokenError } from 'src/common/errors/invalid-token.error';
+import { DuplicateRecordError } from 'src/common/errors/duplicate-record.error';
+import { ERROR_RESPONSE_MESSAGE } from 'src/constant/response-message.constant';
 
+@Injectable()
 export class AuthService {
-  private userRepository: UserRepository;
-  private jwtSecret: JwtService;
 
-  constructor(userRepository: UserRepository, jwtSecret: JwtService) {
+  private readonly userRepository: UserRepository;
+  private readonly jwtService: JwtService;
+
+  constructor(userRepository: UserRepository, jwtService: JwtService) {
     this.userRepository = userRepository;
-    this.jwtSecret = jwtSecret;
+    this.jwtService = jwtService;
   }
   async validateUser(email: string, password: string): Promise<boolean> {
-    try {
-      const user = await this.userRepository.findByEmail(email);
-      if (!user) return false;
-      const isPasswordValid = await this.userRepository.validatePassword(
-        user,
-        password,
-      );
-      if (!isPasswordValid) return false;
-      return true;
-    } catch (error) {
-      logger.error('Error validating user', error);
-      throw error;
-    }
+    const user = await this.userRepository.findByEmail(email);
+    if (!user) return false;
+    const isPasswordValid = await this.userRepository.validatePassword(
+      user,
+      password,
+    );
+    if (!isPasswordValid) return false;
+    return true;
   }
 
   generateJwtToken(userId: string, email: string): string {
     const payload = { sub: userId, email: email };
-    const token = this.jwtSecret.sign(payload);
+    const token = this.jwtService.sign(payload);
     return token;
   }
 
-  async refreshToken(userId: number, token: string): Promise<string> {
-    try {
-      const refreshToken = this.jwtSecret.sign(
-        { sub: userId },
-        {
-          secret: process.env.JWT_REFRESH_SECRET,
-          expiresIn: parseInt(process.env.JWT_REFRESH_EXPIRES || '3600', 10),
-        },
-      );
-      await prisma.userToken.create({
-        data: {
-          refreshToken,
-          userId: userId,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        },
-      });
-      return refreshToken;
-    } catch (error) {
-      logger.error('Error refreshing token', error);
-      throw error;
-    }
+  async generateRefreshToken(userId: number): Promise<string> {
+    const refreshToken = this.jwtService.sign(
+      { sub: userId },
+      {
+        secret: process.env.JWT_REFRESH_SECRET,
+        expiresIn: parseInt(process.env.JWT_REFRESH_EXPIRES || '604800', 10),
+      },
+    );
+
+    await prisma.userToken.create({
+      data: {
+        userId,
+        refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    return refreshToken;
   }
 
-  async refresh(refreshAccessToken: string): Promise<any> {
+  async refresh(token: string): Promise<{ accessToken: string }> {
+    const tokenRecord = await prisma.userToken.findFirst({
+      where: { refreshToken: token },
+    });
+
+    if (!tokenRecord || tokenRecord.revoked) {
+      throw new InvalidTokenError(ERROR_RESPONSE_MESSAGE.INVALID_TOKEN);
+    }
+
+    let payload;
     try {
-      const tokenFind = await prisma.userToken.findFirst({
-        where: {
-          refreshToken: refreshAccessToken,
-        },
-      });
-      if (!tokenFind) throw new Error('Invalid refresh token');
-      const payload = this.jwtSecret.verify(refreshAccessToken, {
+      payload = this.jwtService.verify(token, {
         secret: process.env.JWT_REFRESH_SECRET,
       });
-
-      const newAccessToken = this.jwtSecret.sign(
-        { sub: payload.sub },
-        {
-          secret: process.env.JWT_ACCESS_SECRET,
-          expiresIn: parseInt(process.env.JWT_ACCESS_EXPIRES || '900', 10),
-        },
-      );
-      return { accessToken: newAccessToken };
-    } catch (error) {
-      logger.error('Error in refresh token method', error);
-      throw error;
+    } catch {
+      throw new InvalidTokenError(ERROR_RESPONSE_MESSAGE.INVALID_TOKEN);
     }
+
+    return {
+      accessToken: this.generateJwtToken(payload.sub, payload.email),
+    };
   }
 
   async logout(refreshToken: string) {
@@ -92,38 +92,54 @@ export class AuthService {
     });
   }
   async register(newUser: RegisterRequest): Promise<RegisterResponse> {
-    try {
-        const checkUser= await this.userRepository.findByEmail(newUser.email);
-        if(checkUser){
-            throw new Error('User already exists')
-        }
-        const res= processCreateRequest(newUser);
-        const createdUser= await this.userRepository.createUser(res);
-        return {
-            id: createdUser.id,
-            email: createdUser.email,
-            name: createdUser.fullName
-        }
-    } catch (error) {
-        throw error;
+    const checkUser = await this.userRepository.findByEmail(newUser.email);
+    if (checkUser) {
+      throw new DuplicateRecordError(ERROR_RESPONSE_MESSAGE.EMAIL_ALREADY_EXISTS);
     }
+    const res = processCreateRequest(newUser);
+    const createdUser = await this.userRepository.createUser(res);
+    return {
+      id: createdUser.id,
+      email: createdUser.email,
+      name: createdUser.fullName,
+    };
   }
-  async updateProfile(userId: number, updateData: UpdateProfileRequest): Promise<UpdateProfileResponse>{
-    try {
-      const findUser= await this.userRepository.findById(userId);
-      if(!findUser){
-        throw new Error('User not found');
-      }
-      const updatedUser= await this.userRepository.updateUser(userId, updateData);
-      return {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        phone: updatedUser.phone,
-        address: updatedUser.address
-      }
-    } catch (error) {
-      throw error;
+
+  async authenticate(
+    email: string,
+    password: string,
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    user: UserResponseBasicInfo;
+  }> {
+    const user = await this.userRepository.findByEmail(email);
+    if (!user) {
+      throw new NotFoundError(ERROR_RESPONSE_MESSAGE.USER_NOT_FOUND);
     }
+    const isPasswordValid = await this.userRepository.validatePassword(
+      user,
+      password,
+    );
+    if (!isPasswordValid) {
+      throw new BadCredentialsError(ERROR_RESPONSE_MESSAGE.INVALID_CREDENTIALS);
+    }
+    const accessToken = this.generateJwtToken(user.id.toString(), user.email);
+    const refreshToken = await this.generateRefreshToken(user.id);
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        avatarUrl: user.avatarUrl || '',
+      },
+    };
+  }
+
+  
+  async forgetPassword(req: ForgetPasswordRequest) {
+    throw new BaseError('NOT_IMPLEMENTED', 'Forget password not implemented');
   }
 }

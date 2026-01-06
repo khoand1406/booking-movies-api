@@ -3,11 +3,13 @@ import { AppModule } from './app.module';
 import { AppExceptionFilter } from './common/filters/exception.filter';
 import { testConnection } from './config/database.config';
 import logger from './utils/logger.utils';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
 async function bootstrap() {
   try {
     await testConnection();
     const app = await NestFactory.create(AppModule);
+    app.useGlobalInterceptors(new ResponseInterceptor());
     app.useGlobalFilters(new AppExceptionFilter());
     await app.listen(process.env.PORT ?? 3000);
     logger.info(

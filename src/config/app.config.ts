@@ -16,9 +16,14 @@ const appConfig = {
     password: process.env.DB_PASSWORD || '',
     options: {
       encrypt: true,
-      trustServerCertificate: true, // Add this here
+      trustServerCertificate: true,
     },
   },
+  cloud: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
+    apiKey: process.env.CLOUDINARY_API_KEY || '',
+    apiSecret: process.env.CLOUDINARY_API_SECRET || '',
+  }
 };
 
 export default appConfig;
