@@ -1,10 +1,12 @@
 import { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
 import { Response } from 'express';
 import { BaseError } from '../errors/error.base';
+import logger from 'src/utils/logger.utils';
 
 export class AppExceptionFilter implements ExceptionFilter {
   catch(exception: any, host: ArgumentsHost) {
     const response = host.switchToHttp().getResponse<Response>();
+    logger.error('Exception caught: ', exception);
     if (exception instanceof BaseError) {
       response.status(exception.statusCode).json({
         code: exception.code,
