@@ -1,22 +1,22 @@
-import prisma from 'src/lib/prisma';
 import bcrypt from 'bcrypt';
 import { CreateUserRPayload } from './dto/user.dto';
 import {
   UpdateProfileRequest,
   UpdateProfileResponse,
-  UserDetailResponse,
 } from '../auth/dto/login.dto';
 import { User } from 'generated/prisma/client';
 import { NotFoundError } from 'src/common/errors/not-found.error';
 import { DuplicateRecordError } from 'src/common/errors/duplicate-record.error';
 import { ERROR_RESPONSE_MESSAGE } from 'src/constant/response-message.constant';
+import { PrismaService } from '../prisma/prisma.service';
 
 export class UserRepository {
+  constructor(private readonly prisma: PrismaService){}
   async updateUser(
     userId: number,
     updateData: UpdateProfileRequest,
   ): Promise<UpdateProfileResponse> {
-    const updatedUser = await prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: {
         fullName: updateData.name,
@@ -33,7 +33,7 @@ export class UserRepository {
   }
 
   async findById(userId: number): Promise<User> {
-    const user = await prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
 
@@ -51,7 +51,7 @@ export class UserRepository {
     return false;
   }
   async findByEmail(email: string): Promise<User | null> {
-    const result = await prisma.user.findUnique({
+    const result = await this.prisma.user.findUnique({
       where: {
         email: email,
       },
@@ -61,7 +61,7 @@ export class UserRepository {
   async createUser(payload: CreateUserRPayload): Promise<User> {
     try {
       const hashedPassword = await bcrypt.hash(payload.password, 10);
-      const newUser = await prisma.user.create({
+      const newUser = await this.prisma.user.create({
         data: {
           email: payload.email,
           password: hashedPassword,
@@ -85,14 +85,14 @@ export class UserRepository {
 
   async updatePassword(userId: number, newPassword: string): Promise<void> {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({
+    await this.prisma.user.update({
       where: { id: userId },
       data: { password: hashedPassword },
     });
   }
 
   async findByPhoneNumber(phoneNumber: string): Promise<User | null> {
-    const result = await prisma.user.findFirst({
+    const result = await this.prisma.user.findFirst({
       where: {
         phone: phoneNumber,
       },

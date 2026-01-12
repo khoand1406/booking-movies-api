@@ -1,29 +1,31 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import prisma from 'src/lib/prisma';
+import { BadCredentialsError } from 'src/common/errors/bad-credientals.error';
+import { DuplicateRecordError } from 'src/common/errors/duplicate-record.error';
+import { BaseError } from 'src/common/errors/error.base';
+import { InvalidTokenError } from 'src/common/errors/invalid-token.error';
+import { NotFoundError } from 'src/common/errors/not-found.error';
+import { ERROR_RESPONSE_MESSAGE } from 'src/constant/response-message.constant';
 import { processCreateRequest } from 'src/utils/user.utils';
 import { UserRepository } from '../user/user.repository';
+import { ForgetPasswordRequest } from './dto/auth.dto';
 import {
   UserResponseBasicInfo,
 } from './dto/login.dto';
 import { RegisterRequest, RegisterResponse } from './dto/register.dto';
-import { NotFoundError } from 'src/common/errors/not-found.error';
-import { BadCredentialsError } from 'src/common/errors/bad-credientals.error';
-import { ForgetPasswordRequest } from './dto/auth.dto';
-import { BaseError } from 'src/common/errors/error.base';
-import { InvalidTokenError } from 'src/common/errors/invalid-token.error';
-import { DuplicateRecordError } from 'src/common/errors/duplicate-record.error';
-import { ERROR_RESPONSE_MESSAGE } from 'src/constant/response-message.constant';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AuthService {
 
   private readonly userRepository: UserRepository;
   private readonly jwtService: JwtService;
+  private readonly prisma: PrismaService;
 
-  constructor(userRepository: UserRepository, jwtService: JwtService) {
+  constructor(userRepository: UserRepository, jwtService: JwtService, prisma: PrismaService) {
     this.userRepository = userRepository;
     this.jwtService = jwtService;
+    this.prisma = prisma;
   }
   async validateUser(email: string, password: string): Promise<boolean> {
     const user = await this.userRepository.findByEmail(email);
@@ -51,7 +53,7 @@ export class AuthService {
       },
     );
 
-    await prisma.userToken.create({
+    await this.prisma.userToken.create({
       data: {
         userId,
         refreshToken,
@@ -63,7 +65,7 @@ export class AuthService {
   }
 
   async refresh(token: string): Promise<{ accessToken: string }> {
-    const tokenRecord = await prisma.userToken.findFirst({
+    const tokenRecord = await this.prisma.userToken.findFirst({
       where: { refreshToken: token },
     });
 
@@ -86,7 +88,7 @@ export class AuthService {
   }
 
   async logout(refreshToken: string) {
-    await prisma.userToken.updateMany({
+    await this.prisma.userToken.updateMany({
       where: { refreshToken },
       data: { revoked: true },
     });
@@ -101,7 +103,7 @@ export class AuthService {
     return {
       id: createdUser.id,
       email: createdUser.email,
-      name: createdUser.fullName,
+      name: createdUser.username,
     };
   }
 

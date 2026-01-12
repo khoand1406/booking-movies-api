@@ -5,11 +5,13 @@ import { AuthService } from './auth.service';
 import { UserRepository } from '../user/user.repository';
 import { JWTStrategy } from 'src/common/stragegy/jwt.stagegy';
 import { PassportModule } from '@nestjs/passport';
+import { PrismaModule } from '../prisma/prisma.module';
 @Module({
   controllers: [AuthController],
   providers: [AuthService, UserRepository, JWTStrategy],
   exports: [AuthService],
   imports: [
+    PrismaModule,
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'chapmoitheloaibug',
