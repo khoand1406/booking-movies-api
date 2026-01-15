@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, Showtime } from 'generated/prisma/client';
 import { calculateOffset } from 'src/utils/paginated.utils';
-import { CreateShowtimeDTO } from './dto/showtime.dto';
+import { CreateShowtimeDTO, ShowtimeStatus, UpdateShowtimeDTO } from './dto/showtime.dto';
+import { BadRequestError } from 'src/common/errors/bad-request.error';
+import { ShowtimeWithMovieAndRoom } from 'src/type/showtime/showtime';
 
 @Injectable()
 export class ShowtimeRepository {
@@ -17,7 +19,7 @@ export class ShowtimeRepository {
         cinemaId?: number,
         status?: string,
     ): Promise<{
-        data: Showtime[];
+        data: ShowtimeWithMovieAndRoom[];
         total: number;
         page: number;
         pageSize: number;
@@ -65,7 +67,9 @@ export class ShowtimeRepository {
         cinemaId?: number,
         status?: string,
     ): Prisma.ShowtimeWhereInput {
-        const where: Prisma.ShowtimeWhereInput = {};
+        const where: Prisma.ShowtimeWhereInput = {
+            deletedAt: null
+        };
 
         if (q) {
             where.OR = [
@@ -100,37 +104,139 @@ export class ShowtimeRepository {
             where.status = status;
         }
 
-        if (startTime || endTime) {
-            where.startTime = {
-                ...(startTime && { gte: startTime }),
-                ...(endTime && { lte: endTime }),
-            };
+        if (startTime) {
+            where.startTime = { gte: startTime };
+        }
+
+        if (endTime) {
+            where.endTime = { lte: endTime };
         }
 
         return where;
     }
 
-    async createShowtime(dto: CreateShowtimeDTO): Promise<Showtime> { }
+    async createShowtime(dto: CreateShowtimeDTO): Promise<ShowtimeWithMovieAndRoom> {
+        const roomFindWithCode = await this.prisma.room.findUniqueOrThrow({
+            where: {
+                cinemaId_code: {
+                    code: dto.roomCode,
+                    cinemaId: dto.cinemaId,
+                },
+            },
+        });
+        const conflictTime = await this.checkOverlapShowtime(
+            dto.cinemaId,
+            dto.roomCode,
+            dto.startTime,
+            dto.endTime,
+        );
+
+        if (conflictTime) {
+            throw new BadRequestError(
+                'Overlap showtime with others in room with Id: ' + roomFindWithCode?.id,
+            );
+        }
+
+        const result = await this.prisma.showtime.create({
+            data: {
+                movieId: dto.movieId,
+                roomId: roomFindWithCode.id,
+                startTime: dto.startTime,
+                endTime: dto.endTime,
+                basePrice: dto.basePrice,
+                status: dto.status,
+            },
+            include: {
+                movie: true,
+                room: true
+            }
+        });
+        return result;
+    }
+
+    async updateShowTime(id: number, dto: UpdateShowtimeDTO): Promise<ShowtimeWithMovieAndRoom> {
+        const roomFindWithCode = await this.prisma.room.findUniqueOrThrow({
+            where: {
+                cinemaId_code: {
+                    cinemaId: dto.cinemaId,
+                    code: dto.roomCode,
+                },
+            },
+        });
+        const conflictShowTime = await this.checkOverlapShowtime(
+            dto.cinemaId,
+            dto.roomCode,
+            dto.startTime,
+            dto.endTime,
+            id
+        );
+        if (conflictShowTime) {
+            throw new BadRequestError(
+                'Overlap showtime with others in room with Id: ' + roomFindWithCode?.id,
+            );
+        }
+        const result = await this.prisma.showtime.update({
+            where: { id },
+            data: {
+                movieId: dto.movieId,
+                roomId: roomFindWithCode.id,
+                startTime: dto.startTime,
+                endTime: dto.endTime,
+                basePrice: dto.basePrice,
+                status: dto.status,
+            },
+            include: {
+                movie: true,
+                room: true,
+            }
+        });
+        return result;
+    }
 
     async checkOverlapShowtime(
-        roomId: number,
+        cinemaId: number,
+        roomCode: string,
         startTime: Date,
         endTime: Date,
         excludeShowtimeId?: number,
     ): Promise<boolean> {
         const conflict = await this.prisma.showtime.findFirst({
             where: {
-                roomId,
+                deletedAt: null,
                 ...(excludeShowtimeId && {
                     id: { not: excludeShowtimeId },
                 }),
-                AND: [
-                    { startTime: { lt: endTime } },
-                    { endTime: { gt: startTime } },
-                ],
+                room: {
+                    cinemaId,
+                    code: roomCode,
+                },
+                status: {
+                    not: ShowtimeStatus.CANCELLED,
+                },
+
+                AND: [{ startTime: { lt: endTime } }, { endTime: { gt: startTime } }],
             },
         });
 
         return !!conflict;
+    }
+
+    async deleteShowTime(id: number) {
+        const showtime = await this.prisma.showtime.findUniqueOrThrow({ where: { id } })
+        if (
+            showtime.status === ShowtimeStatus.SHOWING ||
+            showtime.startTime <= new Date()
+        ) {
+            throw new BadRequestError(
+                "Can't delete showtime that has started",
+            );
+        }
+        return this.prisma.showtime.update({
+            where: { id },
+            data: {
+                deletedAt: new Date(),
+                status: ShowtimeStatus.CANCELLED,
+            },
+        });
     }
 }

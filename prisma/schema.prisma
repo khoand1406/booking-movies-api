@@ -56,6 +56,7 @@ model Cinema {
 model Room {
   id         Int      @id @default(autoincrement())
   cinemaId   Int
+  code       String
   name       String
   roomType   String   @db.VarChar(20) // TWO_D, THREE_D, IMAX
   totalSeats Int
@@ -64,6 +65,8 @@ model Room {
   cinema     Cinema   @relation(fields: [cinemaId], references: [id], onDelete: Cascade)
   seats      Seat[]
   showtimes  Showtime[]
+
+  @@unique([cinemaId, code])
 }
 
 /* ======================
@@ -97,7 +100,7 @@ model Showtime {
   endTime    DateTime
   basePrice  Decimal  @db.Decimal(10, 2)
   status     String   @db.VarChar(20) // OPEN, CLOSED, CANCELLED
-
+  deletedAt  DateTime? 
   movie      Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
   room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   bookings   Booking[]
