@@ -20,6 +20,7 @@ import { InvalidOTPException } from 'src/common/errors/invalid-OTP.error';
 import { JwtService } from '@nestjs/jwt';
 import { BookingType } from 'src/common/constant/booking.enum';
 import { MailService } from '../mail/mail.service';
+import { SUCCESS_RESPONSE_MESSAGE } from 'src/constant/response-message.constant';
 
 @Injectable()
 export class BookingService {
@@ -118,7 +119,8 @@ export class BookingService {
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const otpHash = await bcrypt.hash(otp, 10);
         await this.bookingRepository.createBookingOtpRecord(booking.id, otpHash);
-        await this.mailService
+        await this.mailService.sendOtpEmail(dto.guestEmail, dto.otp);
+        return {message: SUCCESS_RESPONSE_MESSAGE.EMAIL_SENT_SUCCESSFULLY}
     }
 
     async confirmGuestRequest(dto: GuestRequestConfirmDto) {

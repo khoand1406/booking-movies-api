@@ -12,18 +12,19 @@ import {
     Req,
     UseGuards,
 } from '@nestjs/common';
-import { BookingService } from './booking.service';
-import { JWTAuthGuard } from 'src/common/guard/auth.guard';
+import { currentGuest } from 'src/common/decorators/current-guest.decorator';
 import { currentUser } from 'src/common/decorators/current-user.decorator';
+import { JWTAuthGuard } from 'src/common/guard/auth.guard';
+import { GuestAuthGuard } from 'src/common/guard/guest-auth.guard';
 import { OptionalJWTAuthGuard } from 'src/common/guard/optional-auth.guard';
+import { BookingService } from './booking.service';
 import {
     CreateBookingDto,
-    GuestBookingQueryDto,
+    GuestRequestConfirmDto,
+    GuestRequestVerifyDto,
     UpdateBookingDto,
-    UpdateStatusBooking,
+    UpdateStatusBooking
 } from './dto/booking.dto';
-import { GuestAuthGuard } from 'src/common/guard/guest-auth.guard';
-import { currentGuest } from 'src/common/decorators/current-guest.decorator';
 
 @Controller('bookings')
 export class BookingController {
@@ -95,9 +96,19 @@ export class BookingController {
         return this.bookingService.deleteBooking(id, user.id);
     }
 
+    @Post('guest/verify')
+    async verifyGuest(@Body() dto: GuestRequestVerifyDto) {
+        return this.bookingService.verifyGuestRequest(dto);
+    }
+
+    @Post('guest/confirm')
+    async confirmGuest(@Body() dto: GuestRequestConfirmDto) {
+        return this.bookingService.confirmGuestRequest(dto);
+    }
+
     @UseGuards(GuestAuthGuard)
-    @Get('guest/booking')
-    async getGuestBooking(@currentGuest() guest: {bookingId: number} ){
+    @Get('guest/history')
+    async getGuestBooking(@currentGuest() guest: { bookingId: number }) {
         return this.bookingService.getGuestBookingById(guest.bookingId);
     }
 }
