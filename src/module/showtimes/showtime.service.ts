@@ -1,12 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PaginatedResponse } from 'src/common/response.base';
-import { ShowtimeWithMovieAndRoom } from 'src/type/showtime/showtime';
+import { ShowtimeWithMovieAndRoom } from 'src/type/showtime';
 import {
     CreateShowtimeDTO,
     ShowtimeQuery,
     ShowtimeResponse,
-    ShowtimeStatus,
-    UpdateShowtimeDTO,
+    UpdateShowtimeDTO
 } from './dto/showtime.dto';
 import { ShowtimeRepository } from './showtime.repository';
 

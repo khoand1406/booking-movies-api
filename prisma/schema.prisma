@@ -149,7 +149,9 @@ model Booking {
   status       String   @db.VarChar(20) // PENDING, PAID, CANCELLED, EXPIRED
   expiresAt    DateTime?
   createdAt    DateTime @default(now())
-
+  deletedAt    DateTime?
+  guestEmail   String?
+  guestPhone   String?
   user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   showtime     Showtime @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
   seats        BookingSeat[]

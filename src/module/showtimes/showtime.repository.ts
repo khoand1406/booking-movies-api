@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, Showtime } from 'generated/prisma/client';
-import { calculateOffset } from 'src/utils/paginated.utils';
-import { CreateShowtimeDTO, ShowtimeStatus, UpdateShowtimeDTO } from './dto/showtime.dto';
+import { Prisma } from 'generated/prisma/client';
 import { BadRequestError } from 'src/common/errors/bad-request.error';
-import { ShowtimeWithMovieAndRoom } from 'src/type/showtime/showtime';
+import { ShowtimeWithMovieAndRoom } from 'src/type/showtime';
+import { calculateOffset } from 'src/utils/paginated.utils';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateShowtimeDTO, ShowtimeStatus, UpdateShowtimeDTO } from './dto/showtime.dto';
 
 @Injectable()
 export class ShowtimeRepository {
