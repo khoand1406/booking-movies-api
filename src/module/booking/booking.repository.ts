@@ -6,6 +6,8 @@ import { PaginatedResponse } from 'src/common/response.base';
 import { BookingWithRelations } from 'src/type/booking';
 import { calculateOffset } from 'src/utils/paginated.utils';
 import { PrismaService } from '../prisma/prisma.service';
+import { GuestRequestVerifyDto } from './dto/booking.dto';
+import bcrypt from 'bcrypt';
 
 @Injectable()
 export class BookingRepository {
@@ -259,5 +261,35 @@ export class BookingRepository {
         ]);
 
         return { data, total, page, limit };
+    }
+    async getBookingByCode(bookingCode: string) {
+        return await this.prisma.booking.findUniqueOrThrow({
+            where: { bookingCode },
+        });
+    }
+    async getOtpRecord(id: number) {
+        return await this.prisma.bookingOtp.findFirstOrThrow({
+            where: { bookingId: id, verifiedAt: null, expiresAt: { gt: new Date() } },
+        });
+    }
+    async updateOtpVerification(id: number) {
+        return await this.prisma.bookingOtp.update({
+            where: { id },
+            data: { verifiedAt: new Date() },
+        });
+    }
+    async getBookingByCodeAndGuestEmail(bookingCode: string, guestEmail: string) {
+        return await this.prisma.booking.findFirstOrThrow({
+            where: { bookingCode, guestEmail, deletedAt: null },
+        });
+    }
+    async createBookingOtpRecord(id: number, otpHash: string) {
+        return await this.prisma.bookingOtp.create({
+            data: {
+                bookingId: id,
+                otpHash: otpHash,
+                expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+            },
+        });
     }
 }

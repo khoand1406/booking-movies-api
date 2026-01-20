@@ -22,6 +22,8 @@ import {
     UpdateBookingDto,
     UpdateStatusBooking,
 } from './dto/booking.dto';
+import { GuestAuthGuard } from 'src/common/guard/guest-auth.guard';
+import { currentGuest } from 'src/common/decorators/current-guest.decorator';
 
 @Controller('bookings')
 export class BookingController {
@@ -93,11 +95,9 @@ export class BookingController {
         return this.bookingService.deleteBooking(id, user.id);
     }
 
-    @UseGuards(OptionalJWTAuthGuard)
-    @Post('guest/search')
-    async getGuestBooking(
-        @Body() body: GuestBookingQueryDto,
-    ) {
-        return this.bookingService.getGuestBooking(body.guestEmail, body.guestPhone, body.page, body.limit);
+    @UseGuards(GuestAuthGuard)
+    @Get('guest/booking')
+    async getGuestBooking(@currentGuest() guest: {bookingId: number} ){
+        return this.bookingService.getGuestBookingById(guest.bookingId);
     }
 }

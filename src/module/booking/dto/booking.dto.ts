@@ -29,15 +29,15 @@ export interface BookingResponse {
   seatCount: number;
 }
 
-export class CreateBookingDto{
-    seatIds!: number[]
-    showtimeId!: number
-    guestEmail?: string
-    guestPhone?: string
+export class CreateBookingDto {
+  seatIds!: number[]
+  showtimeId!: number
+  guestEmail?: string
+  guestPhone?: string
 }
 
-export interface BookingDetailResponse{
-    id: number;
+export interface BookingDetailResponse {
+  id: number;
   bookingCode: string;
   status: string;
   totalAmount: number;
@@ -71,14 +71,14 @@ export interface BookingDetailResponse{
   }[];
 }
 
-export class UpdateBookingDto{
-    seatIds!: number[]
-    bookingId!: number
+export class UpdateBookingDto {
+  seatIds!: number[]
+  bookingId!: number
 }
 
-export class UpdateStatusBooking{
-    bookingId!: number
-    status!: string
+export class UpdateStatusBooking {
+  bookingId!: number
+  status!: string
 }
 
 export interface GuestBookingResponse {
@@ -131,5 +131,17 @@ export class GuestBookingQueryDto {
   @IsInt()
   @Min(1)
   limit = 10;
+}
+
+export interface GuestRequestVerifyDto {
+  bookingCode: string
+  guestEmail: string
+  guestPhone?: string
+  otp: string
+}
+
+export interface GuestRequestConfirmDto{
+  bookingCode: string,
+  otp: string,
 }
 

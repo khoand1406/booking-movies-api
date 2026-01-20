@@ -157,6 +157,19 @@ model Booking {
   seats        BookingSeat[]
   payment      Payment?
   tickets      Ticket[]
+  bookingOTPs  BookingOtp[]
+}
+
+model BookingOtp {
+  id         Int      @id @default(autoincrement())
+  bookingId  Int
+  otpHash    String
+  expiresAt  DateTime
+  verifiedAt DateTime?
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
 }
 
 /* ======================

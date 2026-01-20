@@ -1,19 +1,33 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { BookingRepository } from './booking.repository';
 import { PaginatedResponse } from 'src/common/response.base';
+import bcrypt from 'bcrypt';
 import {
     BookingDetailResponse,
     BookingResponse,
     CreateBookingDto,
     GuestBookingResponse,
+    GuestRequestConfirmDto,
+    GuestRequestVerifyDto,
     UpdateBookingDto,
     UpdateStatusBooking,
 } from './dto/booking.dto';
-import { BookingWithRelations, GuestBookingWithRelations } from 'src/type/booking';
+import {
+    BookingWithRelations,
+    GuestBookingWithRelations,
+} from 'src/type/booking';
+import { InvalidOTPException } from 'src/common/errors/invalid-OTP.error';
+import { JwtService } from '@nestjs/jwt';
+import { BookingType } from 'src/common/constant/booking.enum';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class BookingService {
-    constructor(private readonly bookingRepository: BookingRepository) { }
+    constructor(
+        private readonly bookingRepository: BookingRepository,
+        private readonly JWTService: JwtService,
+        private readonly mailService: MailService
+    ) { }
     async getBookingList(
         page: number,
         pageSize: number,
@@ -36,8 +50,8 @@ export class BookingService {
         };
     }
 
-    async bookingDetail(bookingId: number): Promise<BookingDetailResponse>{
-        const result= await this.bookingRepository.getBookingDetail(bookingId);
+    async bookingDetail(bookingId: number): Promise<BookingDetailResponse> {
+        const result = await this.bookingRepository.getBookingDetail(bookingId);
         return this.mapDetailResponse(result);
     }
 
@@ -79,14 +93,65 @@ export class BookingService {
         return result;
     }
 
-    async getGuestBooking(guestEmail?: string, guestPhone?: string, page?: number, pageSize: number = 10): Promise<PaginatedResponse<GuestBookingResponse>> {
-        const result = await this.bookingRepository.guestBookingHistory(page, pageSize, guestEmail, guestPhone);
+    async getGuestBooking(
+        guestEmail?: string,
+        guestPhone?: string,
+        page?: number,
+        pageSize: number = 10,
+    ): Promise<PaginatedResponse<GuestBookingResponse>> {
+        const result = await this.bookingRepository.guestBookingHistory(
+            page,
+            pageSize,
+            guestEmail,
+            guestPhone,
+        );
         return {
             currentPage: result.page,
-            data: result.data.map(item => this.mapGuestBooking(item)),
+            data: result.data.map((item) => this.mapGuestBooking(item)),
             totalItems: result.total,
-            totalPages: Math.ceil(result.total / pageSize)
+            totalPages: Math.ceil(result.total / pageSize),
+        };
+    }
+
+    async verifyGuestRequest(dto: GuestRequestVerifyDto) {
+        const booking = await this.bookingRepository.getBookingByCodeAndGuestEmail(dto.bookingCode, dto.guestEmail);
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpHash = await bcrypt.hash(otp, 10);
+        await this.bookingRepository.createBookingOtpRecord(booking.id, otpHash);
+        await this.mailService
+    }
+
+    async confirmGuestRequest(dto: GuestRequestConfirmDto) {
+        const booking = await this.bookingRepository.getBookingByCode(
+            dto.bookingCode,
+        );
+        const otpRecord = await this.bookingRepository.getOtpRecord(booking.id);
+        if (otpRecord.expiresAt < new Date()) {
+            throw new InvalidOTPException('OTP expired');
         }
+
+        if (otpRecord.verifiedAt) {
+            throw new InvalidOTPException('OTP already used');
+        }
+        const valid = await bcrypt.compare(dto.otp, otpRecord.otpHash);
+        if (!valid) throw new InvalidOTPException('Invalid OTP');
+
+        await this.bookingRepository.updateOtpVerification(otpRecord.id);
+        const token = this.JWTService.sign(
+            { bookingId: booking.id, type: BookingType.GUEST },
+            { expiresIn: '10m' },
+        );
+        return { guestToken: token, expiresIn: 600 };
+    }
+
+    async getGuestBookingById(bookingId: number) {
+        const booking = await this.bookingRepository.getBookingDetail(bookingId);
+
+        if (!booking || booking.deletedAt) {
+            throw new NotFoundException('Booking not found');
+        }
+
+        return this.mapDetailResponse(booking);
     }
 
     private mapResponse(booking: BookingWithRelations): BookingResponse {
@@ -171,8 +236,7 @@ export class BookingService {
                 movie: {
                     id: booking.showtime.movie.id,
                     title: booking.showtime.movie.title,
-                    durationMinutes:
-                        booking.showtime.movie.durationMinutes,
+                    durationMinutes: booking.showtime.movie.durationMinutes,
                 },
 
                 cinema: {
@@ -189,5 +253,4 @@ export class BookingService {
             },
         };
     }
-
 }

@@ -4,3 +4,9 @@ export enum BookingStatus{
     EXPIRED= 'EXPIRED',
     PAID= 'PAID'
 }
+
+export enum BookingType{
+    GUEST= 'GUEST',
+    USER='USER'
+}
+
